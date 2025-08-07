@@ -24,11 +24,12 @@ import mimetypes
 from typing import Dict, List, Optional, Any
 import re
 from datetime import datetime
+import platform
 # Native file monitoring without external dependencies
 
 
 class AISmartOrganizer:
-    def __init__(self, downloads_path: str = None, model: str = "llama3.2", library_name: str = "AI Library"):
+    def __init__(self, downloads_path: str = None, model: str = "gemma3:4b", library_name: str = "AI Library"):
         """Initialize the AI smart organizer with enhanced features."""
         if downloads_path is None:
             self.downloads_path = os.path.expanduser("~/Downloads")
@@ -53,10 +54,54 @@ class AISmartOrganizer:
         self.ai_timeout = 25
         self.cache_max_size = 500
         
+        # Notification settings
+        self.notifications_enabled = platform.system() == "Darwin"  # macOS only
+        
         # Initialize
         mimetypes.init()
         self._verify_ollama()
         self._ensure_library_exists()
+
+    def send_macos_notification(self, title: str, message: str, subtitle: str = ""):
+        """Send native macOS notification using osascript."""
+        if not self.notifications_enabled:
+            print(f"[INFO] Notifications disabled (notifications_enabled: {self.notifications_enabled})")
+            return
+        
+        print(f"[INFO] Sending notification...")
+        
+        try:
+            # Escape quotes in the text
+            title = title.replace('"', '\\"')
+            message = message.replace('"', '\\"')
+            subtitle = subtitle.replace('"', '\\"')
+            
+            # Create the AppleScript command
+            script = f'''
+            display notification "{message}" with title "{title}" subtitle "{subtitle}"
+            '''
+            
+            print(f"[DEBUG] Executing AppleScript: {script}")
+            
+            # Execute the AppleScript
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            print(f"[DEBUG] AppleScript result - Return code: {result.returncode}")
+            print(f"[DEBUG] AppleScript result - Stdout: {result.stdout}")
+            print(f"[DEBUG] AppleScript result - Stderr: {result.stderr}")
+            
+            if result.returncode != 0:
+                print(f"[ERROR] Notification failed: {result.stderr}")
+            else:
+                print(f"[SUCCESS] Notification sent successfully")
+                
+        except Exception as e:
+            print(f"[ERROR] Error sending notification: {e}")
 
     def _verify_ollama(self):
         """Verify Ollama and model availability."""
@@ -66,11 +111,11 @@ class AISmartOrganizer:
                 raise Exception("Ollama is not running or installed")
             
             if self.model not in result.stdout:
-                print(f"⚠️  Model '{self.model}' not found. Pulling it...")
+                print(f"[WARNING] Model '{self.model}' not found. Pulling it...")
                 pull_result = subprocess.run(["ollama", "pull", self.model], capture_output=True, text=True)
                 if pull_result.returncode != 0:
                     raise Exception(f"Failed to pull model '{self.model}': {pull_result.stderr}")
-                print(f"✅ Model '{self.model}' ready!")
+                print(f"[SUCCESS] Model '{self.model}' ready!")
             
         except subprocess.TimeoutExpired:
             raise Exception("Ollama appears to be unresponsive")
@@ -81,13 +126,13 @@ class AISmartOrganizer:
         """Create the AI Library root folder."""
         if not os.path.exists(self.library_path):
             os.makedirs(self.library_path)
-            print(f"📚 Created {self.library_name} at: {self.library_path}")
+            print(f"[INFO] Created {self.library_name} at: {self.library_path}")
         
         # Create Manual Library folder
         self.manual_library_path = os.path.join(self.downloads_path, "Manual Library")
         if not os.path.exists(self.manual_library_path):
             os.makedirs(self.manual_library_path)
-            print(f"📚 Created Manual Library at: {self.manual_library_path}")
+            print(f"[INFO] Created Manual Library at: {self.manual_library_path}")
 
     def _manage_cache_size(self):
         """Keep cache sizes manageable."""
@@ -345,7 +390,7 @@ Generate filename (without extension):"""
         if not os.path.exists(category_path):
             os.makedirs(category_path)
             self.created_categories.add(category)
-            print(f"📁 Created: {self.library_name}/{category}")
+            print(f"[INFO] Created category folder: {self.library_name}/{category}")
         return category_path
 
     def organize_folders(self, dry_run: bool = False) -> List[str]:
@@ -372,7 +417,7 @@ Generate filename (without extension):"""
                 destination_path = os.path.join(self.manual_library_path, item)
                 
                 if dry_run:
-                    print(f"📁 Would move folder: {item} → Manual Library/{item}")
+                    print(f"[DRY_RUN] Would move folder: {item} → Manual Library/{item}")
                     moved_folders.append(item)
                 else:
                     try:
@@ -385,12 +430,19 @@ Generate filename (without extension):"""
                         
                         shutil.move(item_path, final_destination)
                         moved_folders.append(item)
-                        print(f"📁 Moved folder: {item} → Manual Library/{os.path.basename(final_destination)}")
+                        print(f"[SUCCESS] Moved folder: {item} → Manual Library/{os.path.basename(final_destination)}")
+                        
+                        # Send notification for folder organization
+                        if self.notifications_enabled:
+                            notification_title = "AI Files - Pasta Organizada"
+                            notification_message = f"Movida para: Manual Library/{os.path.basename(final_destination)}"
+                            notification_subtitle = f"Pasta: {item}"
+                            self.send_macos_notification(notification_title, notification_message, notification_subtitle)
                         
                     except Exception as e:
                         error_msg = f"Failed to move folder {item}: {str(e)}"
                         self.errors.append(error_msg)
-                        print(f"   ❌ Error moving folder {item}: {str(e)}")
+                        print(f"[ERROR] Error moving folder {item}: {str(e)}")
         
         except Exception as e:
             self.errors.append(f"Error organizing folders: {str(e)}")
@@ -408,7 +460,7 @@ Generate filename (without extension):"""
         
         filename = os.path.basename(file_path)
         if show_progress:
-            print(f"🧠 Processing: {filename[:50]}{'...' if len(filename) > 50 else ''}")
+            print(f"[PROCESSING] {filename[:50]}{'...' if len(filename) > 50 else ''}")
         
         try:
             # Step 1: Categorize
@@ -436,8 +488,23 @@ Generate filename (without extension):"""
             
             if show_progress:
                 if new_filename != filename:
-                    print(f"   📝 Renamed: {filename} → {new_filename}")
-                print(f"   📁 Moved to: {self.library_name}/{category}")
+                    print(f"   [RENAME] {filename} → {new_filename}")
+                print(f"   [MOVE] {self.library_name}/{category}")
+            
+            # Send notification for successful processing
+            if self.notifications_enabled:
+                notification_title = "AI Files - Arquivo Processado"
+                notification_message = f"Movido para: {self.library_name}/{category}"
+                
+                if new_filename != filename:
+                    notification_subtitle = f"Renomeado: {new_filename}"
+                else:
+                    notification_subtitle = f"Nome mantido: {filename}"
+                
+                print(f"[NOTIFICATION] Sending: {notification_title} - {notification_message} - {notification_subtitle}")
+                self.send_macos_notification(notification_title, notification_message, notification_subtitle)
+            else:
+                print(f"[INFO] Notifications disabled (not macOS)")
             
             self.processed_files.append(destination_path)
             return True
@@ -446,16 +513,16 @@ Generate filename (without extension):"""
             error_msg = f"Failed to process {filename}: {str(e)}"
             self.errors.append(error_msg)
             if show_progress:
-                print(f"   ❌ Error: {str(e)}")
+                print(f"   [ERROR] {str(e)}")
             return False
 
     def organize_downloads(self, dry_run: bool = False, max_files: int = None) -> Dict[str, List[str]]:
         """Organize existing files in Downloads."""
-        print(f"🤖 AI Smart Organizer (Model: {self.model})")
+        print(f"[INFO] AI Smart Organizer (Model: {self.model})")
         print("=" * 70)
-        print(f"📍 Downloads: {self.downloads_path}")
-        print(f"📚 Library: {self.library_path}")
-        print(f"{'📋 DRY RUN MODE' if dry_run else '🚀 ORGANIZING FILES'}")
+        print(f"[INFO] Downloads: {self.downloads_path}")
+        print(f"[INFO] Library: {self.library_path}")
+        print(f"[MODE] {'DRY RUN MODE' if dry_run else 'ORGANIZING FILES'}")
         print("-" * 70)
         
         if not os.path.exists(self.downloads_path):
@@ -473,18 +540,18 @@ Generate filename (without extension):"""
             files = files[:max_files]
         
         if not files:
-            print("📭 No files to organize!")
+            print("[INFO] No files to organize!")
             return {}
         
-        print(f"🔍 Found {len(files)} files to process...")
+        print(f"[INFO] Found {len(files)} files to process...")
         
         # First, organize any loose folders
         moved_folders = self.organize_folders(dry_run)
         if moved_folders:
             if dry_run:
-                print(f"📁 Would move {len(moved_folders)} folders to Manual Library")
+                print(f"[DRY_RUN] Would move {len(moved_folders)} folders to Manual Library")
             else:
-                print(f"📁 Moved {len(moved_folders)} folders to Manual Library")
+                print(f"[SUCCESS] Moved {len(moved_folders)} folders to Manual Library")
         
         print("-" * 70)
         
@@ -505,23 +572,23 @@ Generate filename (without extension):"""
                     category = self.analyze_file_category(file_path)
                     new_name = self.generate_smart_filename(file_path, category)
                     categorized_files[category].append((file_path, new_name))
-                    print(f"   → {category}")
+                    print(f"   [CATEGORY] {category}")
                     if new_name != filename:
-                        print(f"   📝 Would rename to: {new_name}")
+                        print(f"   [RENAME] Would rename to: {new_name}")
                 except Exception as e:
                     categorized_files["Other"].append((file_path, filename))
-                    print(f"   → Other (error: {str(e)})")
+                    print(f"   [ERROR] Other (error: {str(e)})")
         
         # Summary
         print("-" * 70)
         if dry_run:
-            print(f"📊 Preview Complete! {len(files)} files analyzed")
+            print(f"[SUMMARY] Preview Complete! {len(files)} files analyzed")
             for category, file_list in categorized_files.items():
-                print(f"   📁 {category}: {len(file_list)} files")
+                print(f"   [CATEGORY] {category}: {len(file_list)} files")
         else:
-            print(f"✅ Processed {processed_count}/{len(files)} files successfully!")
+            print(f"[SUCCESS] Processed {processed_count}/{len(files)} files successfully!")
             if self.errors:
-                print(f"❌ {len(self.errors)} errors occurred")
+                print(f"[ERROR] {len(self.errors)} errors occurred")
         
         return dict(categorized_files)
 
@@ -574,29 +641,29 @@ class DownloadsMonitor:
                     time.sleep(1)
                     if os.path.getsize(new_file) == initial_size:
                         with self.processing_lock:
-                            print(f"\n🆕 New file detected: {os.path.basename(new_file)}")
+                            print(f"\n[NEW_FILE] Detected: {os.path.basename(new_file)}")
                             success = self.organizer.process_single_file(new_file)
                             if success:
-                                print("✅ File processed successfully!")
+                                print("[SUCCESS] File processed successfully!")
                             else:
-                                print("⚠️ File processing failed or skipped")
+                                print("[WARNING] File processing failed or skipped")
                 except Exception as e:
-                    print(f"⚠️ Error processing new file {os.path.basename(new_file)}: {e}")
+                    print(f"[ERROR] Error processing new file {os.path.basename(new_file)}: {e}")
             
             # Update known files
             self.known_files = current_files
             
         except Exception as e:
-            print(f"⚠️ Error scanning directory: {e}")
+            print(f"[ERROR] Error scanning directory: {e}")
 
 
 def run_background_monitor(organizer: AISmartOrganizer):
     """Run the background file monitor using native polling."""
-    print(f"👁️ Starting background monitor...")
-    print(f"📁 Watching: {organizer.downloads_path}")
-    print(f"📚 AI Library: {organizer.library_path}")
-    print(f"📂 Manual Library: {organizer.manual_library_path}")
-    print("Press Ctrl+C to stop")
+    print(f"[INFO] Starting background monitor...")
+    print(f"[INFO] Watching: {organizer.downloads_path}")
+    print(f"[INFO] AI Library: {organizer.library_path}")
+    print(f"[INFO] Manual Library: {organizer.manual_library_path}")
+    print("[INFO] Press Ctrl+C to stop")
     print("-" * 50)
     
     monitor = DownloadsMonitor(organizer)
@@ -605,7 +672,7 @@ def run_background_monitor(organizer: AISmartOrganizer):
     # Initial folder organization
     moved_folders = organizer.organize_folders(dry_run=False)
     if moved_folders:
-        print(f"📁 Organized {len(moved_folders)} existing folders")
+        print(f"[SUCCESS] Organized {len(moved_folders)} existing folders")
     
     try:
         folder_check_counter = 0
@@ -617,19 +684,19 @@ def run_background_monitor(organizer: AISmartOrganizer):
             if folder_check_counter >= 10:
                 moved_folders = organizer.organize_folders(dry_run=False)
                 if moved_folders:
-                    print(f"\n📁 Organized {len(moved_folders)} new folders")
+                    print(f"\n[SUCCESS] Organized {len(moved_folders)} new folders")
                 folder_check_counter = 0
             
             time.sleep(2)  # Check every 2 seconds
     except KeyboardInterrupt:
-        print("\n🛑 Stopping background monitor...")
+        print("\n[INFO] Stopping background monitor...")
     finally:
         organizer.running = False
 
 
 def signal_handler(signum, frame, organizer):
     """Handle shutdown signals gracefully."""
-    print(f"\n🛑 Received signal {signum}, shutting down gracefully...")
+    print(f"\n[INFO] Received signal {signum}, shutting down gracefully...")
     organizer.running = False
     sys.exit(0)
 
@@ -640,7 +707,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="AI Smart File Organizer with Background Monitoring")
     parser.add_argument("--path", "-p", help="Downloads folder path (default: ~/Downloads)")
-    parser.add_argument("--model", "-m", default="llama3.2", help="Ollama model (default: llama3.2)")
+    parser.add_argument("--model", "-m", default="gemma3:4b", help="Ollama model (default: gemma3:4b)")
     parser.add_argument("--library", "-l", default="AI Library", help="Library folder name (default: 'AI Library')")
     parser.add_argument("--dry-run", "-d", action="store_true", help="Preview without moving files")
     parser.add_argument("--monitor", action="store_true", help="Run in background monitoring mode")
@@ -650,7 +717,7 @@ def main():
     args = parser.parse_args()
     
     try:
-        print(f"🚀 Initializing AI Smart Organizer...")
+        print(f"[INFO] Initializing AI Smart Organizer...")
         organizer = AISmartOrganizer(args.path, args.model, args.library)
         
         # Set up signal handling for graceful shutdown
@@ -665,28 +732,28 @@ def main():
             categorized = organizer.organize_downloads(args.dry_run, args.max_files)
             
             if args.report:
-                print(f"\n📋 REPORT")
+                print(f"\n[REPORT] DETAILED SUMMARY")
                 print("=" * 30)
-                print(f"Model: {organizer.model}")
-                print(f"Library: {organizer.library_path}")
-                print(f"Processed: {len(organizer.processed_files)}")
-                print(f"Categories: {len(organizer.created_categories)}")
-                print(f"Errors: {len(organizer.errors)}")
-                print(f"Cache size: {len(organizer.ai_cache)}")
+                print(f"[INFO] Model: {organizer.model}")
+                print(f"[INFO] Library: {organizer.library_path}")
+                print(f"[INFO] Processed: {len(organizer.processed_files)}")
+                print(f"[INFO] Categories: {len(organizer.created_categories)}")
+                print(f"[INFO] Errors: {len(organizer.errors)}")
+                print(f"[INFO] Cache size: {len(organizer.ai_cache)}")
             
             if args.dry_run:
-                print(f"\n💡 Run without --dry-run to actually organize files")
-                print(f"💡 Use --monitor to run in background mode")
+                print(f"\n[INFO] Run without --dry-run to actually organize files")
+                print(f"[INFO] Use --monitor to run in background mode")
             else:
-                print(f"\n🎉 Organization complete!")
-                print(f"💡 Use --monitor to keep watching for new files")
+                print(f"\n[SUCCESS] Organization complete!")
+                print(f"[INFO] Use --monitor to keep watching for new files")
     
     except Exception as e:
-        print(f"\n❌ Error: {e}")
-        print("\nTroubleshooting:")
-        print("1. Ensure Ollama is running: ollama serve")
-        print("2. Check model availability: ollama list")
-        print("3. Test Ollama: ollama run llama3.2")
+        print(f"\n[ERROR] {e}")
+        print("\n[TROUBLESHOOTING]")
+        print("[INFO] 1. Ensure Ollama is running: ollama serve")
+        print("[INFO] 2. Check model availability: ollama list")
+        print("[INFO] 3. Test Ollama: ollama run llama3.2")
         sys.exit(1)
 
 
