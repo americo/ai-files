@@ -106,13 +106,15 @@ class AISmartOrganizer:
     def _verify_ollama(self):
         """Verify Ollama and model availability."""
         try:
-            result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
+            # Use full path to ollama to avoid PATH issues in LaunchAgent
+            ollama_path = "/usr/local/bin/ollama"
+            result = subprocess.run([ollama_path, "list"], capture_output=True, text=True, timeout=10)
             if result.returncode != 0:
                 raise Exception("Ollama is not running or installed")
             
             if self.model not in result.stdout:
                 print(f"[WARNING] Model '{self.model}' not found. Pulling it...")
-                pull_result = subprocess.run(["ollama", "pull", self.model], capture_output=True, text=True)
+                pull_result = subprocess.run([ollama_path, "pull", self.model], capture_output=True, text=True)
                 if pull_result.returncode != 0:
                     raise Exception(f"Failed to pull model '{self.model}': {pull_result.stderr}")
                 print(f"[SUCCESS] Model '{self.model}' ready!")
