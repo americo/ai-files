@@ -43,8 +43,8 @@ An intelligent file organization system that uses local AI models via Ollama to 
 ### Setup
 1. **Clone or download the script:**
    ```bash
-   curl -O https://raw.githubusercontent.com/your-repo/ai-smart-organizer/main/ai_smart_organizer.py
-   chmod +x ai_smart_organizer.py
+   curl -O https://raw.githubusercontent.com/your-repo/ai-smart-organizer/main/ai_files.py
+   chmod +x ai_files.py
    ```
 
 2. **Install and start Ollama:**
@@ -69,44 +69,44 @@ An intelligent file organization system that uses local AI models via Ollama to 
 
 **Preview what will be organized** (recommended first run):
 ```bash
-python3 ai_smart_organizer.py --dry-run
+python3 ai_files.py --dry-run
 ```
 
 **Organize existing files:**
 ```bash
-python3 ai_smart_organizer.py
+python3 ai_files.py
 ```
 
 **Run in background monitoring mode:**
 ```bash
-python3 ai_smart_organizer.py --monitor
+python3 ai_files.py --monitor
 ```
 
 ### Advanced Options
 
 **Use a specific AI model:**
 ```bash
-python3 ai_smart_organizer.py --model "gemma2:9b" --dry-run
+python3 ai_files.py --model "gemma2:9b" --dry-run
 ```
 
 **Custom Downloads path:**
 ```bash
-python3 ai_smart_organizer.py --path "/path/to/folder" --monitor
+python3 ai_files.py --path "/path/to/folder" --monitor
 ```
 
 **Test with limited files:**
 ```bash
-python3 ai_smart_organizer.py --max-files 5 --dry-run
+python3 ai_files.py --max-files 5 --dry-run
 ```
 
 **Generate detailed report:**
 ```bash
-python3 ai_smart_organizer.py --report
+python3 ai_files.py --report
 ```
 
 **Custom library name:**
 ```bash
-python3 ai_smart_organizer.py --library "My Smart Library" --monitor
+python3 ai_files.py --library "My Smart Library" --monitor
 ```
 
 ### Command Line Options
@@ -168,10 +168,10 @@ The system intelligently categorizes files into:
 ### Running as a Service
 ```bash
 # Start monitoring (runs in foreground)
-python3 ai_smart_organizer.py --monitor
+python3 ai_files.py --monitor
 
 # To run in background (detached)
-nohup python3 ai_smart_organizer.py --monitor > ~/ai_organizer.log 2>&1 &
+nohup python3 ai_files.py --monitor > ~/ai_organizer.log 2>&1 &
 ```
 
 ### What It Monitors
@@ -186,7 +186,7 @@ nohup python3 ai_smart_organizer.py --monitor > ~/ai_organizer.log 2>&1 &
 Ctrl+C
 
 # If running in background
-pkill -f ai_smart_organizer.py
+pkill -f ai_files.py
 ```
 
 ## 📁 Folder Structure
@@ -283,12 +283,12 @@ ollama pull llama3.2
 
 **View detailed errors:**
 ```bash
-python3 ai_smart_organizer.py --report
+python3 ai_files.py --report
 ```
 
 **Run with maximum verbosity:**
 ```bash
-python3 ai_smart_organizer.py --dry-run --max-files 1
+python3 ai_files.py --dry-run --max-files 1
 ```
 
 **Check Ollama status:**
@@ -309,14 +309,8 @@ curl http://localhost:11434/api/tags
 ### Development Setup
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/ai-smart-organizer.git
-cd ai-smart-organizer
-
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-python -m pytest tests/
+git clone https://github.com/americo/ai-files.git
+cd ai-files
 ```
 
 ## 📄 License
