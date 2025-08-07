@@ -434,7 +434,7 @@ Generate filename (without extension):"""
                         
                         # Send notification for folder organization
                         if self.notifications_enabled:
-                            notification_title = "AI Files - Pasta Organizada"
+                            notification_title = "AI Files"
                             notification_message = f"Movida para: Manual Library/{os.path.basename(final_destination)}"
                             notification_subtitle = f"Pasta: {item}"
                             self.send_macos_notification(notification_title, notification_message, notification_subtitle)
